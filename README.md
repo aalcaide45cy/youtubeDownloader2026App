@@ -55,7 +55,8 @@ Si quieres usar el descargador como una aplicación de escritorio tradicional in
 4. Puedes mover este `.exe` a tu Escritorio o a cualquier carpeta y ejecutarlo con doble clic.
 
 ### 💾 Persistencia de Configuración
-- Al cambiar la carpeta de descarga desde la aplicación compilada, la ruta se guardará de forma persistente en un archivo `config.json` generado **al lado de tu ejecutable `.exe`**. 
+- Al cambiar la carpeta de descarga, la ruta se guardará de forma persistente e interna en la carpeta de configuración oculta de Windows (`%APPDATA%/YT_Downloader_Premium/config.json`).
+- Esto mantiene la carpeta de tu ejecutable completamente limpia, sin generar archivos visibles adicionales a su lado.
 - La próxima vez que inicies la aplicación, tu última carpeta de descargas se cargará de forma automática.
 
 ---
