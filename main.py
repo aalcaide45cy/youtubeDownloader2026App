@@ -1,0 +1,296 @@
+import os
+import sys
+import json
+import queue
+import threading
+import pathlib
+import webbrowser
+import webview
+from pydantic import BaseModel
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from concurrent.futures import ThreadPoolExecutor
+
+# Importar funciones de descarga
+from downloader import extract_video_info, download_item, format_size
+
+app = FastAPI(title="YouTube Downloader Premium API")
+
+# Habilitar CORS para desarrollo
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Definir la ruta de descarga predeterminada (carpeta Descargas del usuario)
+DEFAULT_DOWNLOAD_DIR = str(pathlib.Path.home() / "Downloads")
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+def load_saved_download_dir():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                saved_dir = data.get("download_dir")
+                if saved_dir and os.path.exists(saved_dir):
+                    return os.path.normpath(saved_dir)
+        except Exception:
+            pass
+    return os.path.normpath(DEFAULT_DOWNLOAD_DIR)
+
+def save_download_dir(folder_path):
+    try:
+        data = {}
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        data["download_dir"] = folder_path
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
+
+class AnalyzeRequest(BaseModel):
+    url: str
+    browser: Optional[str] = None
+
+class DownloadItemRequest(BaseModel):
+    id: str
+    url: str # URL específica del vídeo a descargar
+    type: str # 'video', 'audio', or 'subtitle'
+    val: str  # format_id o 'bestvideo+bestaudio/best' o 'bestaudio/best'
+    title: str # Título del vídeo
+    audio_val: Optional[str] = None # ID de audio específico asociado para combinar con el video
+
+class DownloadRequest(BaseModel):
+    url: Optional[str] = None
+    items: List[DownloadItemRequest]
+    download_dir: Optional[str] = None
+    browser: Optional[str] = None
+
+class OpenFolderRequest(BaseModel):
+    folder_path: str
+
+@app.get("/api/default-folder")
+def get_default_folder():
+    """
+    Retorna la carpeta de descargas predeterminada o la guardada de forma persistente.
+    """
+    return {
+        "status": "success",
+        "folder": load_saved_download_dir()
+    }
+
+@app.post("/api/open-folder")
+def open_folder(request: OpenFolderRequest):
+    """
+    Abre la carpeta de descarga en el explorador de archivos nativo de Windows.
+    """
+    path = request.folder_path
+    if not path:
+        path = DEFAULT_DOWNLOAD_DIR
+        
+    if os.path.exists(path):
+        try:
+            os.startfile(os.path.normpath(path))
+            return {"status": "success"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"No se pudo abrir la carpeta: {str(e)}")
+    else:
+        raise HTTPException(status_code=404, detail="La carpeta especificada no existe.")
+
+@app.post("/api/analyze")
+def analyze_video(request: AnalyzeRequest):
+    """
+    Analiza un enlace de YouTube y retorna los formatos de video, audio y subtítulos disponibles.
+    """
+    if not request.url:
+        raise HTTPException(status_code=400, detail="Se requiere una URL válida.")
+    try:
+        info = extract_video_info(request.url, request.browser)
+        return info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/select-folder")
+def select_folder():
+    """
+    Abre el diálogo nativo de Windows (tkinter) para elegir una carpeta de descarga
+    y la guarda de forma persistente en config.json.
+    """
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Necesitamos inicializar Tk de forma segura en este hilo
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True) # Forzar ventana al frente
+        
+        initial_dir = load_saved_download_dir()
+        
+        # Mostrar el diálogo de selección de carpeta
+        folder = filedialog.askdirectory(
+            title="Seleccionar Carpeta para Guardar Descargas",
+            initialdir=initial_dir
+        )
+        root.destroy()
+        
+        if folder:
+            norm_folder = os.path.normpath(folder)
+            save_download_dir(norm_folder)
+            return {"status": "success", "folder": norm_folder}
+        else:
+            return {"status": "cancelled", "folder": None}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/download")
+def download_stream(request: DownloadRequest):
+    """
+    Inicia la descarga de los elementos seleccionados de forma concurrente
+    y transmite el progreso en tiempo real usando Server-Sent Events (SSE).
+    """
+    download_dir = request.download_dir or load_saved_download_dir()
+    if not os.path.exists(download_dir):
+        try:
+            os.makedirs(download_dir, exist_ok=True)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"No se pudo crear el directorio de descarga: {str(e)}")
+
+    q = queue.Queue()
+
+    def run_downloads():
+        # Descarga concurrente: máximo 4 descargas en paralelo
+        max_workers = min(len(request.items), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for item in request.items:
+                item_id = item.id
+                item_type = item.type
+                val = item.val
+                audio_val = item.audio_val
+                item_url = item.url
+                
+                # Función que envolverá la llamada individual de descarga
+                def download_task(i_id, i_type, v, a_v, url):
+                    try:
+                        # Notificar inicio de la descarga
+                        q.put({
+                            "id": i_id,
+                            "status": "started",
+                            "type": i_type
+                        })
+                        
+                        def progress_callback(data):
+                            q.put({
+                                "id": i_id,
+                                "status": "progress",
+                                "data": data
+                            })
+                        
+                        download_item(
+                            url,
+                            i_type,
+                            v,
+                            download_dir,
+                            progress_callback,
+                            i_id,
+                            browser_name=request.browser,
+                            associated_audio_val=a_v
+                        )
+                        
+                        # Notificar completado
+                        q.put({
+                            "id": i_id,
+                            "status": "completed"
+                        })
+                    except Exception as e:
+                        # Notificar error
+                        q.put({
+                            "id": i_id,
+                            "status": "failed",
+                            "error": str(e)
+                        })
+
+                # Lanzar tarea en el pool de hilos
+                futures.append(executor.submit(download_task, item_id, item_type, val, audio_val, item_url))
+            
+            # Esperar a que terminen todas las descargas del pool
+            for future in futures:
+                future.result()
+
+        # Notificar fin de todo el lote de descargas
+        q.put({"status": "done"})
+
+    # Iniciar la descarga en un hilo secundario para no bloquear el bucle de FastAPI
+    threading.Thread(target=run_downloads, daemon=True).start()
+
+    # Generador de eventos SSE
+    def event_generator():
+        while True:
+            try:
+                msg = q.get(timeout=180) # Espera máxima de 3 minutos por evento
+                if msg.get("status") == "done":
+                    yield f"data: {json.dumps({'status': 'done'})}\n\n"
+                    break
+                yield f"data: {json.dumps(msg)}\n\n"
+            except queue.Empty:
+                yield f"data: {json.dumps({'status': 'error', 'error': 'Tiempo de espera agotado en la descarga'})}\n\n"
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+                break
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# Montar los archivos estáticos del frontend (con soporte para empaquetado de PyInstaller)
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
+static_dir = os.path.join(base_path, "static")
+if not os.path.exists(static_dir):
+    try:
+        os.makedirs(static_dir, exist_ok=True)
+    except Exception:
+        pass
+
+app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
+def start_server():
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+
+if __name__ == "__main__":
+    import time
+    
+    # 1. Arrancar el servidor FastAPI/Uvicorn en segundo plano
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+    
+    # Esperar un instante a que el servidor esté listo
+    time.sleep(0.6)
+    
+    # 2. Abrir la ventana nativa de escritorio
+    webview.create_window(
+        title="YT Downloader Premium",
+        url="http://127.0.0.1:8000",
+        width=1250,
+        height=820,
+        resizable=True,
+        min_size=(950, 650)
+    )
+    
+    # Iniciar la interfaz gráfica de webview (bloquea el hilo principal)
+    webview.start()
+    
+    # Salir limpiamente cuando se cierre la ventana
+    sys.exit(0)
