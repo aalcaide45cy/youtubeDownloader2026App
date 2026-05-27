@@ -346,6 +346,7 @@ class DownloadProgressHook:
         self.callback = callback
         self.item_id = item_id
         self.files_to_cleanup = set()
+        self.last_update_time = 0
 
     def __call__(self, d):
         # Guardar nombres de archivos para posible limpieza
@@ -383,6 +384,12 @@ class DownloadProgressHook:
             raise RuntimeError("Descarga cancelada por el usuario")
 
         if d['status'] == 'downloading':
+            current_time = time.time()
+            # Limitar a un reporte cada 0.3 segundos para no saturar la CPU y optimizar el rendimiento
+            if current_time - self.last_update_time < 0.3:
+                return
+            self.last_update_time = current_time
+
             total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
             downloaded = d.get('downloaded_bytes', 0)
             percentage = (downloaded / total * 100) if total > 0 else 0
@@ -418,6 +425,8 @@ def download_item(url, item_type, selection_val, download_dir, progress_callback
         'progress_hooks': [hook],
         'quiet': True,
         'no_warnings': True,
+        'buffersize': 1024 * 1024,
+        'concurrent_fragment_downloads': 5,
         'extractor_args': {
             'youtube': {
                 'lang': ['es']
