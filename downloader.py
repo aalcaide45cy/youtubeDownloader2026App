@@ -412,9 +412,10 @@ def download_item(url, item_type, selection_val, download_dir, progress_callback
     """
     Descarga un elemento específico en la carpeta indicada.
     """
+    hook = DownloadProgressHook(progress_callback, item_id)
     ydl_opts = {
         'outtmpl': os.path.join(download_dir, '%(title)s.%(ext)s'),
-        'progress_hooks': [DownloadProgressHook(progress_callback, item_id)],
+        'progress_hooks': [hook],
         'quiet': True,
         'no_warnings': True,
         'extractor_args': {
