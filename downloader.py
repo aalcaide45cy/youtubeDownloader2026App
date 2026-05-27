@@ -2,7 +2,12 @@ import os
 import yt_dlp
 import html
 import re
+import time
 from yt_dlp.postprocessor.common import PostProcessor
+
+# Diccionario global para controlar los estados de descargas activas
+# Mapea: item_id -> 'running' | 'paused' | 'cancelled'
+DOWNLOAD_STATES = {}
 
 class EmojiCleanerPP(PostProcessor):
     def run(self, info):
@@ -342,6 +347,32 @@ class DownloadProgressHook:
         self.item_id = item_id
 
     def __call__(self, d):
+        # Verificar cancelaciones o pausas solicitadas
+        if DOWNLOAD_STATES.get(self.item_id) == 'cancelled':
+            raise RuntimeError("Descarga cancelada por el usuario")
+            
+        has_reported_paused = False
+        while DOWNLOAD_STATES.get(self.item_id) == 'paused':
+            if DOWNLOAD_STATES.get(self.item_id) == 'cancelled':
+                raise RuntimeError("Descarga cancelada por el usuario")
+            
+            if not has_reported_paused:
+                total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                downloaded = d.get('downloaded_bytes', 0)
+                percentage = (downloaded / total * 100) if total > 0 else 0
+                self.callback({
+                    'id': self.item_id,
+                    'status': 'paused',
+                    'percentage': round(percentage, 1),
+                    'speed': 'Pausado',
+                    'eta': '-'
+                })
+                has_reported_paused = True
+            time.sleep(0.5)
+            
+        if DOWNLOAD_STATES.get(self.item_id) == 'cancelled':
+            raise RuntimeError("Descarga cancelada por el usuario")
+
         if d['status'] == 'downloading':
             total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
             downloaded = d.get('downloaded_bytes', 0)

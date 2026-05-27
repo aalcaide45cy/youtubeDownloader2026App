@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Downloader Premium</title>
+    <title>Youtube Downloader</title>
     <!-- Google Fonts: Outfit e Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,9 +23,9 @@
         <header class="app-header">
             <div class="logo">
                 <i class="fab fa-youtube logo-icon animate-pulse"></i>
-                <h1 id="app-title">YT Downloader <span>Premium</span></h1>
+                <h1 id="app-title">Youtube <span>Downloader</span></h1>
             </div>
-            <p class="subtitle">Analiza y descarga videos en máxima calidad de forma simple y elegante</p>
+            <p class="subtitle">Analiza y descarga videos y listas en máxima calidad de forma simple y elegante</p>
         </header>
 
         <!-- Sección de Entrada URL -->
@@ -33,7 +33,7 @@
             <section class="url-section glass-panel">
                 <div class="input-group">
                     <i class="fas fa-link input-icon"></i>
-                    <input type="text" id="youtube-url" placeholder="Pega el enlace del video de YouTube aquí..." autocomplete="off">
+                    <input type="text" id="youtube-url" placeholder="Pega el enlace del video o de la lista de reproducción aquí..." autocomplete="off">
                     
                     <!-- Selector de cookies del navegador para Login -->
                     <div class="browser-select-wrapper">
@@ -216,6 +216,10 @@
             <section id="downloads-section" class="downloads-section glass-panel hidden">
                 <div class="downloads-header">
                     <h3><i class="fas fa-tasks text-gradient"></i> Estado de Descargas</h3>
+                    <div class="global-download-controls">
+                        <button id="btn-pause-all" class="btn-control-secondary" title="Pausar todas las descargas"><i class="fas fa-pause"></i> Pausar todas</button>
+                        <button id="btn-resume-all" class="btn-control-secondary" title="Reanudar todas las descargas"><i class="fas fa-play"></i> Reanudar todas</button>
+                    </div>
                     <span id="downloads-total-badge" class="badge">0 descargas</span>
                 </div>
                 <div class="downloads-list scrollbar" id="downloads-progress-list">
@@ -226,7 +230,7 @@
 
         <!-- Pie de Página -->
         <footer class="app-footer">
-            <p>YT Downloader Premium &copy; 2026. Creado con fines educativos y uso personal.</p>
+            <p>Youtube Downloader &copy; 2026. Creado con fines educativos y uso personal.</p>
         </footer>
     </div>
     

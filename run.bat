@@ -1,7 +1,7 @@
 @echo off
-title YT Downloader Premium - Servidor Local
+title Youtube Downloader - Servidor Local
 echo ===================================================
-echo   INICIANDO YT DOWNLOADER PREMIUM (SERVIDOR LOCAL)
+echo   INICIANDO YOUTUBE DOWNLOADER (SERVIDOR LOCAL)
 echo ===================================================
 echo.
 

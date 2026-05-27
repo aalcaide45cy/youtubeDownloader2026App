@@ -1,7 +1,7 @@
 @echo off
-title YT Downloader Premium - Compilador EXE
+title Youtube Downloader - Compilador EXE
 echo ===================================================
-echo   COMPILANDO YT DOWNLOADER PREMIUM A EJECUTABLE
+echo   COMPILANDO YOUTUBE DOWNLOADER A EJECUTABLE
 echo ===================================================
 echo.
 
@@ -27,7 +27,7 @@ echo [INFO] Iniciando la compilacion con PyInstaller...
 echo Esto empaquetara el codigo y los archivos estaticos en un solo archivo .exe
 echo.
 
-pyinstaller --noconsole --onefile --add-data "static;static" --name "YT_Downloader_Premium" main.py
+pyinstaller --noconsole --onefile --add-data "static;static" --name "Youtube_Downloader" --icon="icon.ico" main.py
 
 if %errorlevel% neq 0 (
     echo.
@@ -40,7 +40,7 @@ if %errorlevel% neq 0 (
 echo.
 echo ===================================================
 echo   [EXITO] Compilacion completada con exito.
-echo   El archivo ejecutable 'YT_Downloader_Premium.exe' 
+echo   El archivo ejecutable 'Youtube_Downloader.exe' 
 echo   se encuentra en la carpeta 'dist/'.
 echo ===================================================
 echo.

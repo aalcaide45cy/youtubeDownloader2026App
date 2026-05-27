@@ -55,6 +55,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const downloadsSection = document.getElementById("downloads-section");
     const downloadsProgressList = document.getElementById("downloads-progress-list");
     const downloadsTotalBadge = document.getElementById("downloads-total-badge");
+    const btnPauseAll = document.getElementById("btn-pause-all");
+    const btnResumeAll = document.getElementById("btn-resume-all");
 
     // ==========================================================================
     // ESTADO DE LA APLICACIÓN
@@ -353,6 +355,46 @@ document.addEventListener("DOMContentLoaded", () => {
         playlistChannel.innerHTML = `<i class="fas fa-list-ul"></i> ${escapeHtml(meta.channel)}`;
     }
 
+    // Función para estimar el tamaño del archivo según la duración y el formato de calidad
+    function estimateSize(duration, mode) {
+        if (!duration) return "Desconocido";
+        const bitrates = {
+            'video_best': 2500, // 2.5 Mbps
+            'video_1080': 2500, // 2.5 Mbps
+            'video_720': 1200,  // 1.2 Mbps
+            'video_480': 500,   // 500 kbps
+            'video_360': 300,   // 300 kbps
+            'audio_320': 320,   // 320 kbps
+            'audio_192': 192,   // 192 kbps
+            'audio_128': 128    // 128 kbps
+        };
+        const bitrate = bitrates[mode] || 1200;
+        const sizeBytes = (duration * bitrate * 1000) / 8;
+        return formatBytes(sizeBytes);
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return "Desconocido";
+        const k = 1024;
+        const dm = 1;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    // Recalcular los tamaños dinámicos cuando cambia la calidad seleccionada de la playlist
+    playlistDownloadMode.addEventListener("change", () => {
+        const mode = playlistDownloadMode.value;
+        const rows = playlistVideosList.querySelectorAll(".option-row");
+        rows.forEach(row => {
+            const duration = row.getAttribute("data-duration");
+            const sizeValSpan = row.querySelector(".playlist-item-size-val");
+            if (sizeValSpan && duration) {
+                sizeValSpan.textContent = estimateSize(parseInt(duration), mode);
+            }
+        });
+    });
+
     function renderPlaylist(data) {
         playlistVideosList.innerHTML = "";
         
@@ -370,6 +412,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = document.createElement("div");
         row.className = "option-row";
         row.id = `pl-item-${entry.id}`;
+        row.setAttribute("data-duration", entry.duration || 0);
 
         row.innerHTML = `
             <div class="option-left" style="flex: 1; overflow: hidden;">
@@ -383,8 +426,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="option-note">${escapeHtml(entry.channel || 'Canal desconocido')}</span>
                 </div>
             </div>
-            <div class="option-right" style="flex-shrink: 0;">
-                <span class="option-size">${entry.duration_string || '00:00'}</span>
+            <div class="option-right" style="flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                <span class="option-size playlist-item-size-val">${estimateSize(entry.duration || 0, playlistDownloadMode.value)}</span>
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${entry.duration_string || '00:00'}</span>
             </div>
         `;
 
@@ -472,6 +516,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // DESCARGAR ELEMENTOS CON SSE EN TIEMPO REAL
     // ==========================================================================
     btnDownload.addEventListener("click", startDownloads);
+
+    btnPauseAll.addEventListener("click", async () => {
+        try {
+            await fetch("/api/download/pause-all", { method: "POST" });
+        } catch (e) {
+            console.error("Error al pausar todas las descargas:", e);
+        }
+    });
+
+    btnResumeAll.addEventListener("click", async () => {
+        try {
+            await fetch("/api/download/resume-all", { method: "POST" });
+        } catch (e) {
+            console.error("Error al reanudar todas las descargas:", e);
+        }
+    });
 
     async function startDownloads() {
         const isPlaylist = currentVideoData && currentVideoData.is_playlist;
@@ -604,6 +664,44 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // GESTIÓN DE TARJETAS DE PROGRESO DE DESCARGA
     // ==========================================================================
+    async function pauseDownloadItem(itemId) {
+        try {
+            await fetch("/api/download/pause", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: itemId })
+            });
+        } catch (e) {
+            console.error("Error al pausar descarga:", e);
+        }
+    }
+
+    async function resumeDownloadItem(itemId) {
+        try {
+            await fetch("/api/download/resume", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: itemId })
+            });
+        } catch (e) {
+            console.error("Error al reanudar descarga:", e);
+        }
+    }
+
+    async function cancelDownloadItem(itemId) {
+        if (confirm("¿Estás seguro de que quieres cancelar y eliminar esta descarga?")) {
+            try {
+                await fetch("/api/download/cancel", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: itemId })
+                });
+            } catch (e) {
+                console.error("Error al cancelar descarga:", e);
+            }
+        }
+    }
+
     function createProgressCard(info) {
         const card = document.createElement("div");
         card.className = "progress-card";
@@ -622,14 +720,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="progress-bar-fill" id="progress-bar-fill-${info.id}"></div>
             </div>
             <div class="progress-footer">
-                <span class="progress-status status-waiting" id="progress-status-${info.id}">
-                    <i class="fas fa-clock fa-spin"></i> En cola
-                </span>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span class="progress-status status-waiting" id="progress-status-${info.id}">
+                        <i class="fas fa-clock fa-spin"></i> En cola
+                    </span>
+                    <!-- Botones de Control -->
+                    <div class="item-download-controls" id="item-controls-${info.id}">
+                        <button class="btn-item-control btn-pause" id="btn-pause-${info.id}" title="Pausar descarga">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="btn-item-control btn-cancel" id="btn-cancel-${info.id}" title="Cancelar/Eliminar">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
                 <span id="progress-speed-eta-${info.id}">-</span>
             </div>
         `;
 
         downloadsProgressList.appendChild(card);
+
+        const btnPause = card.querySelector(`#btn-pause-${info.id}`);
+        const btnCancel = card.querySelector(`#btn-cancel-${info.id}`);
+
+        btnPause.addEventListener("click", () => {
+            if (btnPause.classList.contains("resuming")) {
+                resumeDownloadItem(info.id);
+            } else {
+                pauseDownloadItem(info.id);
+            }
+        });
+
+        btnCancel.addEventListener("click", () => {
+            cancelDownloadItem(info.id);
+        });
     }
 
     function handleSSEEvent(event) {
@@ -656,6 +780,22 @@ document.addEventListener("DOMContentLoaded", () => {
             statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Iniciando...`;
             metaText.textContent = "Conectando...";
         } 
+        else if (event.status === "paused") {
+            const percent = event.percentage || 0;
+            fillBar.style.width = `${percent}%`;
+            metaText.textContent = `${percent}% (Pausado)`;
+            
+            statusSpan.className = "progress-status status-paused";
+            statusSpan.innerHTML = `<i class="fas fa-pause"></i> Pausado`;
+            speedEtaSpan.textContent = `Pausado`;
+            
+            const btnPause = card.querySelector(`#btn-pause-${itemId}`);
+            if (btnPause) {
+                btnPause.innerHTML = `<i class="fas fa-play"></i>`;
+                btnPause.title = "Reanudar descarga";
+                btnPause.classList.add("resuming");
+            }
+        }
         else if (event.status === "progress") {
             const data = event.data;
             if (data.status === "downloading") {
@@ -666,6 +806,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 statusSpan.className = "progress-status status-downloading";
                 statusSpan.innerHTML = `<i class="fas fa-arrow-down-long animate-bounce-slow"></i> Descargando`;
                 speedEtaSpan.textContent = `${data.speed} | ETA: ${data.eta}`;
+                
+                const btnPause = card.querySelector(`#btn-pause-${itemId}`);
+                if (btnPause && btnPause.classList.contains("resuming")) {
+                    btnPause.innerHTML = `<i class="fas fa-pause"></i>`;
+                    btnPause.title = "Pausar descarga";
+                    btnPause.classList.remove("resuming");
+                }
+            } else if (data.status === "paused") {
+                const percent = data.percentage || 0;
+                fillBar.style.width = `${percent}%`;
+                metaText.textContent = `${percent}% (Pausado)`;
+                
+                statusSpan.className = "progress-status status-paused";
+                statusSpan.innerHTML = `<i class="fas fa-pause"></i> Pausado`;
+                speedEtaSpan.textContent = `Pausado`;
+                
+                const btnPause = card.querySelector(`#btn-pause-${itemId}`);
+                if (btnPause) {
+                    btnPause.innerHTML = `<i class="fas fa-play"></i>`;
+                    btnPause.title = "Reanudar descarga";
+                    btnPause.classList.add("resuming");
+                }
             }
         } 
         else if (event.status === "completed") {
@@ -675,7 +837,9 @@ document.addEventListener("DOMContentLoaded", () => {
             statusSpan.className = "progress-status status-finished";
             statusSpan.innerHTML = `<i class="fas fa-circle-check"></i> Completado`;
             
-            // Reemplazar el texto de velocidad con un botón interactivo de abrir carpeta
+            const controls = card.querySelector(`#item-controls-${itemId}`);
+            if (controls) controls.style.display = "none";
+            
             speedEtaSpan.innerHTML = `
                 <button class="btn-open-folder" title="Abrir carpeta de descargas en Windows Explorer">
                     <i class="fas fa-folder-open"></i> Abrir Carpeta
@@ -691,7 +855,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }).catch(err => console.error("Error al abrir carpeta:", err));
             });
             
-            // Animación suave de éxito
             card.style.boxShadow = "0 0 10px rgba(16, 185, 129, 0.15)";
             card.style.borderColor = "var(--success)";
         } 
@@ -701,10 +864,12 @@ document.addEventListener("DOMContentLoaded", () => {
             speedEtaSpan.textContent = "";
             metaText.textContent = "Fallo";
             
+            const controls = card.querySelector(`#item-controls-${itemId}`);
+            if (controls) controls.style.display = "none";
+            
             card.style.borderColor = "var(--error)";
             card.style.boxShadow = "0 0 10px rgba(239, 68, 68, 0.15)";
             
-            // Añadir explicación del error abajo de la tarjeta si no existía ya
             let errorDiv = card.querySelector(".error-detail");
             if (!errorDiv) {
                 errorDiv = document.createElement("div");

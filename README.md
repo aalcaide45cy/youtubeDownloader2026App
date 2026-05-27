@@ -1,4 +1,4 @@
-# YT Downloader Premium - Aplicación de Escritorio e Interfaz Glassmorphic
+# Youtube Downloader - Aplicación de Escritorio e Interfaz Glassmorphic
 
 Una aplicación de escritorio nativa de Windows, de diseño premium y moderna, construida con **FastAPI** en el backend y una interfaz de usuario integrada con **Glassmorphism** en el frontend usando **pywebview**. Utiliza **yt-dlp** para analizar y descargar flujos de YouTube a la velocidad máxima de tu red.
 
@@ -8,16 +8,20 @@ Una aplicación de escritorio nativa de Windows, de diseño premium y moderna, c
 
 1. **Multi-Descarga Concurrente (Hilos)**: 
    Descarga múltiples pistas de vídeo, audio y subtítulos en paralelo (hasta 4 descargas simultáneas) utilizando un pool de hilos (`ThreadPoolExecutor`).
-2. **Selección de Idiomas de Audio**:
+2. **Control Completo de Descargas (Pausar/Reanudar/Cancelar)**:
+   Permite pausar, reanudar o cancelar descargas de forma individual para cada elemento en la cola, o realizar acciones globales como "Pausar todas" y "Reanudar todas".
+3. **Estimación Dinámica del Tamaño del Archivo**:
+   Muestra estimaciones del tamaño del archivo en tiempo real para listas de reproducción según la duración del vídeo y la resolución o calidad seleccionada.
+4. **Selección de Idiomas de Audio**:
    Permite listar todos los idiomas de audio disponibles de un vídeo. Si seleccionas una resolución de vídeo y una pista de audio en un idioma específico (ej: Español), la aplicación descargará ambos y los fusionará automáticamente en un solo archivo `.mp4` usando FFmpeg.
-3. **Login seguro por Navegador (Cookies)**:
+5. **Login seguro por Navegador (Cookies)**:
    Evita bloqueos de edad, CAPTCHAs y accede a tus vídeos privados o de miembros cargando las cookies de sesión activa de tu navegador web preferido (Chrome, Edge, Firefox, Brave, Opera, Vivaldi, Safari) de forma segura.
-4. **Selector de Carpeta Nativo**:
+6. **Selector de Carpeta Nativo**:
    Integra una ventana emergente nativa del explorador de Windows para cambiar fácilmente la carpeta donde se guardarán las descargas.
-5. **Progreso en Tiempo Real**:
+7. **Progreso en Tiempo Real**:
    Transmite de manera asíncrona la velocidad de descarga en MB/s, porcentaje y tiempo estimado (ETA) mediante Server-Sent Events (SSE).
-6. **Diseño Visual de Vanguardia**:
-   Interfaz de usuario responsiva estilo "Glassmorphic" con orbes brillantes de fondo, modo oscuro, skeleton loaders y transiciones fluidas.
+8. **Diseño Visual de Vanguardia con Icono Premium**:
+   Interfaz de usuario responsiva estilo "Glassmorphic" con orbes brillantes de fondo, modo oscuro, skeleton loaders, transiciones fluidas y un icono de escritorio de alta definición y diseño premium.
 
 ---
 
@@ -51,11 +55,11 @@ Si quieres usar el descargador como una aplicación de escritorio tradicional in
 
 1. Haz doble clic en el archivo **`build.bat`**.
 2. Este script utilizará **PyInstaller** para compilar la aplicación, sus dependencias y las plantillas estáticas en un único archivo ejecutable.
-3. El archivo resultante, **`YT_Downloader_Premium.exe`**, se guardará en la carpeta **`dist/`**.
+3. El archivo resultante, **`Youtube_Downloader.exe`**, se guardará en la carpeta **`dist/`**.
 4. Puedes mover este `.exe` a tu Escritorio o a cualquier carpeta y ejecutarlo con doble clic.
 
 ### 💾 Persistencia de Configuración
-- Al cambiar la carpeta de descarga, la ruta se guardará de forma persistente e interna en la carpeta de configuración oculta de Windows (`%APPDATA%/YT_Downloader_Premium/config.json`).
+- Al cambiar la carpeta de descarga, la ruta se guardará de forma persistente e interna en la carpeta de configuración oculta de Windows (`%APPDATA%/Youtube_Downloader/config.json`).
 - Esto mantiene la carpeta de tu ejecutable completamente limpia, sin generar archivos visibles adicionales a su lado.
 - La próxima vez que inicies la aplicación, tu última carpeta de descargas se cargará de forma automática.
 

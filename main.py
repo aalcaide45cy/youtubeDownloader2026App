@@ -15,9 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from concurrent.futures import ThreadPoolExecutor
 
 # Importar funciones de descarga
-from downloader import extract_video_info, download_item, format_size
+from downloader import extract_video_info, download_item, format_size, DOWNLOAD_STATES
 
-app = FastAPI(title="YouTube Downloader Premium API")
+app = FastAPI(title="Youtube Downloader API")
 
 # Habilitar CORS para desarrollo
 app.add_middleware(
@@ -31,7 +31,7 @@ app.add_middleware(
 # Definir la ruta de descarga predeterminada (carpeta Descargas del usuario)
 DEFAULT_DOWNLOAD_DIR = str(pathlib.Path.home() / "Downloads")
 # Determinar la carpeta de persistencia interna (en el directorio oculto AppData/Roaming del sistema)
-APPDATA_DIR = os.path.join(os.environ.get('APPDATA', str(pathlib.Path.home() / 'AppData' / 'Roaming')), 'YT_Downloader_Premium')
+APPDATA_DIR = os.path.join(os.environ.get('APPDATA', str(pathlib.Path.home() / 'AppData' / 'Roaming')), 'Youtube_Downloader')
 try:
     os.makedirs(APPDATA_DIR, exist_ok=True)
 except Exception:
@@ -83,6 +83,9 @@ class DownloadRequest(BaseModel):
 
 class OpenFolderRequest(BaseModel):
     folder_path: str
+
+class DownloadControlRequest(BaseModel):
+    id: str
 
 @app.get("/api/default-folder")
 def get_default_folder():
@@ -185,6 +188,9 @@ def download_stream(request: DownloadRequest):
                 audio_val = item.audio_val
                 item_url = item.url
                 
+                # Inicializar el estado de la descarga en el diccionario global
+                DOWNLOAD_STATES[item_id] = 'running'
+                
                 # Función que envolverá la llamada individual de descarga
                 def download_task(i_id, i_type, v, a_v, url):
                     try:
@@ -257,6 +263,35 @@ def download_stream(request: DownloadRequest):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+@app.post("/api/download/pause")
+def pause_download(request: DownloadControlRequest):
+    DOWNLOAD_STATES[request.id] = 'paused'
+    return {"status": "success", "message": f"Descarga {request.id} pausada"}
+
+@app.post("/api/download/resume")
+def resume_download(request: DownloadControlRequest):
+    DOWNLOAD_STATES[request.id] = 'running'
+    return {"status": "success", "message": f"Descarga {request.id} reanudada"}
+
+@app.post("/api/download/cancel")
+def cancel_download(request: DownloadControlRequest):
+    DOWNLOAD_STATES[request.id] = 'cancelled'
+    return {"status": "success", "message": f"Descarga {request.id} cancelada"}
+
+@app.post("/api/download/pause-all")
+def pause_all_downloads():
+    for item_id in list(DOWNLOAD_STATES.keys()):
+        if DOWNLOAD_STATES[item_id] == 'running':
+            DOWNLOAD_STATES[item_id] = 'paused'
+    return {"status": "success", "message": "Todas las descargas activas pausadas"}
+
+@app.post("/api/download/resume-all")
+def resume_all_downloads():
+    for item_id in list(DOWNLOAD_STATES.keys()):
+        if DOWNLOAD_STATES[item_id] == 'paused':
+            DOWNLOAD_STATES[item_id] = 'running'
+    return {"status": "success", "message": "Todas las descargas pausadas reanudadas"}
+
 # Montar los archivos estáticos del frontend (con soporte para empaquetado de PyInstaller)
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -288,7 +323,7 @@ if __name__ == "__main__":
     
     # 2. Abrir la ventana nativa de escritorio
     webview.create_window(
-        title="YT Downloader Premium",
+        title="Youtube Downloader",
         url="http://127.0.0.1:8000",
         width=1250,
         height=820,
