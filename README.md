@@ -1,6 +1,6 @@
-# YT Downloader Premium - Servidor Local Multi-Descarga
+# YT Downloader Premium - Aplicación de Escritorio e Interfaz Glassmorphic
 
-Una aplicación web de escritorio local, de diseño premium y moderna, construida con **FastAPI** en el backend y una interfaz de usuario fluida con **Glassmorphism** en el frontend. Utiliza **yt-dlp** para analizar y descargar flujos de YouTube a la velocidad máxima de tu red.
+Una aplicación de escritorio nativa de Windows, de diseño premium y moderna, construida con **FastAPI** en el backend y una interfaz de usuario integrada con **Glassmorphism** en el frontend usando **pywebview**. Utiliza **yt-dlp** para analizar y descargar flujos de YouTube a la velocidad máxima de tu red.
 
 ---
 
@@ -30,7 +30,7 @@ Antes de iniciar la aplicación, asegúrate de tener instalado en tu sistema:
 
 ---
 
-## 💻 Cómo Iniciar (Windows)
+## 💻 Cómo Iniciar (Modo Desarrollo)
 
 Para facilitarte la vida, hemos incluido un script automatizado. Simplemente haz doble clic en el archivo:
 
@@ -38,11 +38,25 @@ Para facilitarte la vida, hemos incluido un script automatizado. Simplemente haz
 
 Este archivo por lotes se encargará automáticamente de:
 1. Comprobar si existe el entorno virtual local de Python (`.venv`). Si no, lo creará.
-2. Verificar e instalar las dependencias necesarias (`fastapi`, `uvicorn`, `yt-dlp`).
-3. Iniciar el servidor local de FastAPI.
-4. Abrir automáticamente tu navegador de internet preferido en la dirección: **`http://127.0.0.1:8000`**.
+2. Verificar e instalar las dependencias necesarias (`fastapi`, `uvicorn`, `yt-dlp`, `pywebview`, `pyinstaller`).
+3. Iniciar el servidor local en segundo plano y abrir **una ventana dedicada de escritorio integrada** con el descargador, sin necesidad de usar el navegador de internet del sistema.
 
-*Para cerrar el servidor en cualquier momento, basta con cerrar la ventana de comandos negra.*
+*Al cerrar la ventana de la aplicación, el servidor y todos los procesos en segundo plano se detendrán automáticamente.*
+
+---
+
+## 📦 Compilar a Aplicación Ejecutable (.exe)
+
+Si quieres usar el descargador como una aplicación de escritorio tradicional independiente (portable) y sin tener consolas abiertas, puedes empaquetarla con un solo clic:
+
+1. Haz doble clic en el archivo **`build.bat`**.
+2. Este script utilizará **PyInstaller** para compilar la aplicación, sus dependencias y las plantillas estáticas en un único archivo ejecutable.
+3. El archivo resultante, **`YT_Downloader_Premium.exe`**, se guardará en la carpeta **`dist/`**.
+4. Puedes mover este `.exe` a tu Escritorio o a cualquier carpeta y ejecutarlo con doble clic.
+
+### 💾 Persistencia de Configuración
+- Al cambiar la carpeta de descarga desde la aplicación compilada, la ruta se guardará de forma persistente en un archivo `config.json` generado **al lado de tu ejecutable `.exe`**. 
+- La próxima vez que inicies la aplicación, tu última carpeta de descargas se cargará de forma automática.
 
 ---
 
