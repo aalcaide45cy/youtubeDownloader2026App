@@ -30,15 +30,14 @@ app.add_middleware(
 
 # Definir la ruta de descarga predeterminada (carpeta Descargas del usuario)
 DEFAULT_DOWNLOAD_DIR = str(pathlib.Path.home() / "Downloads")
-# Determinar la carpeta real donde se almacena el config.json (persistencia local)
-if getattr(sys, 'frozen', False):
-    # En producción (con PyInstaller), guardar al lado del ejecutable (.exe) real, no en el directorio temporal
-    APP_DIR = os.path.dirname(sys.executable)
-else:
-    # En desarrollo, al lado del archivo script
-    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# Determinar la carpeta de persistencia interna (en el directorio oculto AppData/Roaming del sistema)
+APPDATA_DIR = os.path.join(os.environ.get('APPDATA', str(pathlib.Path.home() / 'AppData' / 'Roaming')), 'YT_Downloader_Premium')
+try:
+    os.makedirs(APPDATA_DIR, exist_ok=True)
+except Exception:
+    pass
 
-CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+CONFIG_FILE = os.path.join(APPDATA_DIR, "config.json")
 
 def load_saved_download_dir():
     if os.path.exists(CONFIG_FILE):
