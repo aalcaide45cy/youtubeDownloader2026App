@@ -219,6 +219,8 @@
                     <div class="global-download-controls">
                         <button id="btn-pause-all" class="btn-control-secondary" title="Pausar todas las descargas"><i class="fas fa-pause"></i> Pausar todas</button>
                         <button id="btn-resume-all" class="btn-control-secondary" title="Reanudar todas las descargas"><i class="fas fa-play"></i> Reanudar todas</button>
+                        <button id="btn-cancel-all" class="btn-control-danger" title="Cancelar todas las descargas"><i class="fas fa-times"></i> Cancelar todas</button>
+                        <button id="btn-clear-list" class="btn-control-clear" title="Limpiar lista de descargas terminadas"><i class="fas fa-trash-alt"></i> Limpiar lista</button>
                     </div>
                     <span id="downloads-total-badge" class="badge">0 descargas</span>
                 </div>
@@ -234,6 +236,23 @@
         </footer>
     </div>
     
+    <!-- Modal de Confirmación Moderno (Premium Glassmorphic) -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content glass-panel animate-scale-in">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-triangle modal-icon text-gradient"></i>
+                <h3 id="modal-title">Confirmar acción</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message">¿Estás seguro de que deseas realizar esta acción?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-btn-cancel" class="btn btn-secondary">Cancelar</button>
+                <button id="modal-btn-confirm" class="btn btn-danger">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

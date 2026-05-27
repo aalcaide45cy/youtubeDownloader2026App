@@ -278,6 +278,13 @@ def cancel_download(request: DownloadControlRequest):
     DOWNLOAD_STATES[request.id] = 'cancelled'
     return {"status": "success", "message": f"Descarga {request.id} cancelada"}
 
+@app.post("/api/download/cancel-all")
+def cancel_all_downloads():
+    for item_id in list(DOWNLOAD_STATES.keys()):
+        if DOWNLOAD_STATES[item_id] in ['running', 'paused']:
+            DOWNLOAD_STATES[item_id] = 'cancelled'
+    return {"status": "success", "message": "Todas las descargas activas canceladas"}
+
 @app.post("/api/download/pause-all")
 def pause_all_downloads():
     for item_id in list(DOWNLOAD_STATES.keys()):
@@ -328,7 +335,8 @@ if __name__ == "__main__":
         width=1250,
         height=820,
         resizable=True,
-        min_size=(950, 650)
+        min_size=(950, 650),
+        maximized=True
     )
     
     # Iniciar la interfaz gráfica de webview (bloquea el hilo principal)

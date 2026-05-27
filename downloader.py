@@ -345,8 +345,17 @@ class DownloadProgressHook:
     def __init__(self, callback, item_id):
         self.callback = callback
         self.item_id = item_id
+        self.files_to_cleanup = set()
 
     def __call__(self, d):
+        # Guardar nombres de archivos para posible limpieza
+        for key in ['filename', 'tmpfilename']:
+            val = d.get(key)
+            if val:
+                self.files_to_cleanup.add(val)
+                self.files_to_cleanup.add(val + ".part")
+                self.files_to_cleanup.add(val + ".ytdl")
+
         # Verificar cancelaciones o pausas solicitadas
         if DOWNLOAD_STATES.get(self.item_id) == 'cancelled':
             raise RuntimeError("Descarga cancelada por el usuario")
@@ -464,25 +473,35 @@ def download_item(url, item_type, selection_val, download_dir, progress_callback
         try:
             ydl.add_post_processor(EmojiCleanerPP(), when='pre_process')
             ydl.download([url])
-        except yt_dlp.utils.DownloadError as e:
-            msg = str(e)
-            if "cookie" in msg.lower() or "browser" in msg.lower():
-                err_msg = (
-                    f"Error de cookies. Por favor, cierra tu navegador '{browser_name}' "
-                    f"completamente para liberar la base de datos de cookies e inténtalo de nuevo."
-                )
-            else:
-                err_msg = msg
-            progress_callback({
-                'id': item_id,
-                'status': 'error',
-                'error': err_msg
-            })
-            raise RuntimeError(err_msg)
         except Exception as e:
-            progress_callback({
-                'id': item_id,
-                'status': 'error',
-                'error': str(e)
-            })
-            raise e
+            # Comprobar si la descarga ha sido cancelada por el usuario
+            if DOWNLOAD_STATES.get(item_id) == 'cancelled' or "cancelada por el usuario" in str(e):
+                progress_callback({
+                    'id': item_id,
+                    'status': 'cancelled'
+                })
+                # Eliminar los archivos parciales ahora que yt-dlp ha salido y liberado los descriptores de archivo
+                for filepath in hook.files_to_cleanup:
+                    try:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                            print(f"[CLEANUP] Archivo eliminado tras cancelacion: {filepath}")
+                    except Exception as ex:
+                        print(f"[CLEANUP] No se pudo eliminar archivo {filepath}: {ex}")
+                raise RuntimeError("Descarga cancelada por el usuario")
+            else:
+                # Comprobar si es un error de descarga de cookies o general
+                msg = str(e)
+                if "cookie" in msg.lower() or "browser" in msg.lower():
+                    err_msg = (
+                        f"Error de cookies. Por favor, cierra tu navegador '{browser_name}' "
+                        f"completamente para liberar la base de datos de cookies e inténtalo de nuevo."
+                    )
+                else:
+                    err_msg = msg
+                progress_callback({
+                    'id': item_id,
+                    'status': 'error',
+                    'error': err_msg
+                })
+                raise RuntimeError(err_msg)

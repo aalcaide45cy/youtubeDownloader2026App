@@ -57,6 +57,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const downloadsTotalBadge = document.getElementById("downloads-total-badge");
     const btnPauseAll = document.getElementById("btn-pause-all");
     const btnResumeAll = document.getElementById("btn-resume-all");
+    const btnCancelAll = document.getElementById("btn-cancel-all");
+    const btnClearList = document.getElementById("btn-clear-list");
 
     // ==========================================================================
     // ESTADO DE LA APLICACIÓN
@@ -533,6 +535,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    btnCancelAll.addEventListener("click", cancelAllDownloads);
+    btnClearList.addEventListener("click", clearDownloadsList);
+
     async function startDownloads() {
         const isPlaylist = currentVideoData && currentVideoData.is_playlist;
         const count = isPlaylist ? selectedPlaylistItems.size : selectedItems.size;
@@ -688,8 +693,52 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Helper para mostrar un modal de confirmacion premium asincrono
+    function showConfirmModal(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById("confirm-modal");
+            const modalTitle = document.getElementById("modal-title");
+            const modalMessage = document.getElementById("modal-message");
+            const btnConfirm = document.getElementById("modal-btn-confirm");
+            const btnCancel = document.getElementById("modal-btn-cancel");
+            
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            
+            modal.classList.add("active");
+            
+            function cleanup() {
+                modal.classList.remove("active");
+                btnConfirm.removeEventListener("click", onConfirm);
+                btnCancel.removeEventListener("click", onCancel);
+            }
+            
+            function onConfirm() {
+                cleanup();
+                resolve(true);
+            }
+            
+            function onCancel() {
+                cleanup();
+                resolve(false);
+            }
+            
+            btnConfirm.addEventListener("click", onConfirm);
+            btnCancel.addEventListener("click", onCancel);
+        });
+    }
+
     async function cancelDownloadItem(itemId) {
-        if (confirm("¿Estás seguro de que quieres cancelar y eliminar esta descarga?")) {
+        // Pausar de inmediato
+        await pauseDownloadItem(itemId);
+        
+        // Mostrar modal estilizado
+        const confirmed = await showConfirmModal(
+            "Cancelar Descarga",
+            "¿Estás seguro de que quieres cancelar esta descarga? Se eliminarán los archivos parciales descargados."
+        );
+        
+        if (confirmed) {
             try {
                 await fetch("/api/download/cancel", {
                     method: "POST",
@@ -699,7 +748,61 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (e) {
                 console.error("Error al cancelar descarga:", e);
             }
+        } else {
+            // Reanudar descarga si canceló el modal
+            await resumeDownloadItem(itemId);
         }
+    }
+
+    async function cancelAllDownloads() {
+        // Pausar todas las descargas activas de inmediato
+        try {
+            await fetch("/api/download/pause-all", { method: "POST" });
+        } catch (e) {
+            console.error("Error al pausar todas las descargas:", e);
+        }
+        
+        // Mostrar modal estilizado
+        const confirmed = await showConfirmModal(
+            "Cancelar Todas las Descargas",
+            "¿Estás seguro de que quieres cancelar y eliminar todas las descargas activas?"
+        );
+        
+        if (confirmed) {
+            try {
+                await fetch("/api/download/cancel-all", { method: "POST" });
+            } catch (e) {
+                console.error("Error al cancelar todas las descargas:", e);
+            }
+        } else {
+            // Reanudar todas las descargas si canceló el modal
+            try {
+                await fetch("/api/download/resume-all", { method: "POST" });
+            } catch (e) {
+                console.error("Error al reanudar todas las descargas:", e);
+            }
+        }
+    }
+
+    function clearDownloadsList() {
+        const cards = downloadsProgressList.querySelectorAll(".progress-card");
+        cards.forEach(card => {
+            const statusSpan = card.querySelector(".progress-status");
+            const isCompleted = statusSpan && statusSpan.classList.contains("status-finished");
+            const isFailed = statusSpan && statusSpan.classList.contains("status-error");
+            const isCancelled = statusSpan && statusSpan.innerHTML.includes("Cancelado");
+            
+            if (isCompleted || isFailed || isCancelled) {
+                card.remove();
+            }
+        });
+        
+        // Ocultar seccion si se vacia por completo
+        if (downloadsProgressList.children.length === 0) {
+            downloadsSection.classList.add("hidden");
+        }
+        
+        downloadsTotalBadge.textContent = `${downloadsProgressList.children.length} descarga(s)`;
     }
 
     function createProgressCard(info) {
@@ -857,7 +960,19 @@ document.addEventListener("DOMContentLoaded", () => {
             
             card.style.boxShadow = "0 0 10px rgba(16, 185, 129, 0.15)";
             card.style.borderColor = "var(--success)";
-        } 
+        }
+        else if (event.status === "cancelled") {
+            statusSpan.className = "progress-status status-error";
+            statusSpan.innerHTML = `<i class="fas fa-ban"></i> Cancelado`;
+            speedEtaSpan.textContent = "Cancelado y eliminado";
+            metaText.textContent = "Cancelado";
+            
+            const controls = card.querySelector(`#item-controls-${itemId}`);
+            if (controls) controls.style.display = "none";
+            
+            card.style.borderColor = "var(--error)";
+            card.style.boxShadow = "0 0 10px rgba(239, 68, 68, 0.1)";
+        }
         else if (event.status === "failed") {
             statusSpan.className = "progress-status status-error";
             statusSpan.innerHTML = `<i class="fas fa-triangle-exclamation"></i> Error`;
